@@ -1,5 +1,6 @@
 import { useState } from "react";
 import DataTable, { type ColumnDef } from "./DataTable";
+import DataTableDemo from "./DataTableV2";
 
 interface Person {
   id: string;
@@ -63,8 +64,9 @@ function App() {
 
   return (
     <>
-      <input value={keyword} onChange={(e) => setKeyword(e.target.value)} />
-      <DataTable data={items} columns={columns} />
+      {/* <input value={keyword} onChange={(e) => setKeyword(e.target.value)} />
+      <DataTable data={items} columns={columns} /> */}
+      <DataTableDemo />
     </>
   );
 }
