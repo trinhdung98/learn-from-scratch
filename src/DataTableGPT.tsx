@@ -24,22 +24,6 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
-/**
- * Lean, production-ready-ish skeleton for a comprehensive DataTable (dnd-kit edition):
- * - React + TypeScript
- * - Column filters (per-column text input)
- * - Column sorting (multi-sort with Shift)
- * - Column ordering via drag & drop (dnd-kit) for center region
- * - Column pinning (sticky left/right)
- * - Column resizing (drag handle)
- * - Pagination (client-side)
- * - Virtualized rows & columns (@tanstack/react-virtual)
- *
- * Notes:
- * - Pinned columns are row-virtualized but not column-virtualized (keeps logic simple).
- * - Center columns are horizontally virtualized and draggable within the visible window (can be extended to full list).
- */
-
 // =====================
 // Types
 // =====================
@@ -66,7 +50,7 @@ export type Sort = { columnId: string; dir: SortDir };
 
 export type Filter = {
   columnId: string;
-  value: string; // default: text contains; customize later
+  value: string; // default: text contains
 };
 
 export type PinSide = "left" | "right" | null; // null => center
@@ -82,6 +66,7 @@ export type TableState = {
   pagination: PaginationState;
   scrollLeft: number;
   scrollTop: number;
+  columnVisibility: Record<string, boolean>; // NEW
 };
 
 export type TableProps<T extends RowData> = {
@@ -94,7 +79,7 @@ export type TableProps<T extends RowData> = {
   height?: number; // viewport height in px
   width?: number; // table width in px
   overscan?: number;
-  rowHeight?: number; // fixed for simplicity (you can make dynamic)
+  rowHeight?: number; // fixed for simplicity
 };
 
 // =====================
@@ -167,6 +152,9 @@ function createInitialState<T extends RowData>(
   const columnWidths: Record<string, number> = Object.fromEntries(
     columns.map((c) => [c.id, c.width ?? 160])
   );
+  const columnVisibility: Record<string, boolean> = Object.fromEntries(
+    columns.map((c) => [c.id, true])
+  );
   return {
     sortBy: [],
     filters: [],
@@ -176,6 +164,7 @@ function createInitialState<T extends RowData>(
     pagination: { pageIndex: 0, pageSize: 25 },
     scrollLeft: 0,
     scrollTop: 0,
+    columnVisibility,
     ...overrides,
   };
 }
@@ -189,7 +178,10 @@ type Action<T extends RowData> =
   | { type: "PIN_COLUMN"; columnId: string; side: PinSide }
   | { type: "RESIZE_COLUMN"; columnId: string; width: number }
   | { type: "SET_PAGINATION"; payload: PaginationState }
-  | { type: "SET_SCROLL"; left: number; top: number };
+  | { type: "SET_SCROLL"; left: number; top: number }
+  // NEW visibility actions
+  | { type: "TOGGLE_COLUMN_VISIBILITY"; columnId: string; visible: boolean }
+  | { type: "SET_ALL_COLUMNS_VISIBILITY"; visible: boolean };
 
 function reducer<T extends RowData>(
   state: TableState,
@@ -248,6 +240,24 @@ function reducer<T extends RowData>(
       return { ...state, pagination: action.payload };
     case "SET_SCROLL":
       return { ...state, scrollLeft: action.left, scrollTop: action.top };
+
+    // NEW: visibility
+    case "TOGGLE_COLUMN_VISIBILITY": {
+      return {
+        ...state,
+        columnVisibility: {
+          ...state.columnVisibility,
+          [action.columnId]: action.visible,
+        },
+      };
+    }
+    case "SET_ALL_COLUMNS_VISIBILITY": {
+      const next = Object.fromEntries(
+        Object.keys(state.columnVisibility).map((k) => [k, action.visible])
+      );
+      return { ...state, columnVisibility: next };
+    }
+
     default:
       return state;
   }
@@ -284,18 +294,27 @@ export function useTable<T extends RowData>(props: TableProps<T>) {
     [columns]
   );
 
-  // Split columns into regions (left, center, right)
+  // Split columns into regions (left, center, right) respecting visibility
   const leftPinned = useMemo(
-    () => columns.filter((c) => state.columnPin[c.id] === "left"),
-    [columns, state.columnPin]
+    () =>
+      columns.filter(
+        (c) => state.columnVisibility[c.id] && state.columnPin[c.id] === "left"
+      ),
+    [columns, state.columnPin, state.columnVisibility]
   );
   const rightPinned = useMemo(
-    () => columns.filter((c) => state.columnPin[c.id] === "right"),
-    [columns, state.columnPin]
+    () =>
+      columns.filter(
+        (c) => state.columnVisibility[c.id] && state.columnPin[c.id] === "right"
+      ),
+    [columns, state.columnPin, state.columnVisibility]
   );
   const centerAll = useMemo(
-    () => columns.filter((c) => state.columnPin[c.id] === null),
-    [columns, state.columnPin]
+    () =>
+      columns.filter(
+        (c) => state.columnVisibility[c.id] && state.columnPin[c.id] === null
+      ),
+    [columns, state.columnPin, state.columnVisibility]
   );
 
   // Center visual order according to columnOrder
@@ -424,6 +443,18 @@ export function useTable<T extends RowData>(props: TableProps<T>) {
     []
   );
 
+  // NEW: visibility helpers
+  const toggleColumnVisibility = useCallback(
+    (columnId: string, visible: boolean) =>
+      dispatch({ type: "TOGGLE_COLUMN_VISIBILITY", columnId, visible }),
+    []
+  );
+  const setAllColumnsVisibility = useCallback(
+    (visible: boolean) =>
+      dispatch({ type: "SET_ALL_COLUMNS_VISIBILITY", visible }),
+    []
+  );
+
   return {
     // state & sizing
     state,
@@ -453,6 +484,8 @@ export function useTable<T extends RowData>(props: TableProps<T>) {
     resizeColumn,
     reorderCenter,
     setPagination,
+    toggleColumnVisibility, // NEW
+    setAllColumnsVisibility, // NEW
 
     // refs
     viewportRef,
@@ -621,6 +654,10 @@ function HeaderCell<T extends RowData>(props: HeaderCellProps<T>) {
             placeholder="Filter…"
             value={filterValue ?? ""}
             onChange={(e) => onFilterChange?.(e.target.value)}
+            // prevent dnd/sort/resize from stealing focus/gestures
+            onPointerDownCapture={(e) => e.stopPropagation()}
+            onClickCapture={(e) => e.stopPropagation()}
+            onKeyDownCapture={(e) => e.stopPropagation()}
           />
         </div>
       )}
@@ -684,6 +721,8 @@ export function DataTable<T extends RowData>(props: TableProps<T>) {
     resizeColumn,
     reorderCenter,
     setPagination,
+    toggleColumnVisibility, // NEW
+    setAllColumnsVisibility, // NEW
     viewportRef,
     rowKey,
   } = table;
@@ -778,7 +817,6 @@ export function DataTable<T extends RowData>(props: TableProps<T>) {
           })}
         </div>
       </SortableContext>
-      {/* Optional: <DragOverlay> for fancy previews */}
       <DragOverlay />
     </DndContext>
   );
@@ -960,8 +998,39 @@ export function DataTable<T extends RowData>(props: TableProps<T>) {
     );
   };
 
+  // Column visibility picker (NEW)
+  const allChecked = useMemo(
+    () => Object.values(state.columnVisibility).every(Boolean),
+    [state.columnVisibility]
+  );
+
+  const ColumnPicker = () => (
+    <div className="flex flex-wrap items-center gap-3 text-sm px-1">
+      <label className="inline-flex items-center gap-2 font-medium">
+        <input
+          type="checkbox"
+          checked={allChecked}
+          onChange={(e) => setAllColumnsVisibility(e.target.checked)}
+        />
+        Check all
+      </label>
+
+      {props.columns.map((c) => (
+        <label key={c.id} className="inline-flex items-center gap-1">
+          <input
+            type="checkbox"
+            checked={!!state.columnVisibility[c.id]}
+            onChange={(e) => toggleColumnVisibility(c.id, e.target.checked)}
+          />
+          <span className="whitespace-nowrap">{c.header}</span>
+        </label>
+      ))}
+    </div>
+  );
+
   return (
     <div className="flex flex-col gap-2">
+      <ColumnPicker /> {/* NEW */}
       <div
         ref={viewportRef}
         style={viewportStyle}

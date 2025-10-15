@@ -1,4 +1,5 @@
-import { DataTableDemo } from "./DataTable/DataTable";
+// import { DataTableDemo } from "./DataTable/DataTable";
+import { DataTableDemo } from "./DataTableGPT";
 import WhackAMole from "./WhackAMoleGPT";
 import Wordle from "./WordleGPT";
 
