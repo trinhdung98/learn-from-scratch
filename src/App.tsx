@@ -1,11 +1,15 @@
-import TicTacToe from "./TicTacToeGPTV2";
+import { DataTableDemo } from "./DataTable/DataTable";
+import WhackAMole from "./WhackAMoleGPT";
+import Wordle from "./WordleGPT";
 
 function App() {
   return (
     <>
-      {/* <DataTableDemo /> */}
+      <DataTableDemo />
       {/* <DataTableV2Demo /> */}
-      {<TicTacToe />}
+      {/* {<TicTacToe />} */}
+      {/* <WhackAMole /> */}
+      {/* <Wordle /> */}
     </>
   );
 }

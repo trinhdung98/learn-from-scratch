@@ -1039,7 +1039,7 @@ export const DataTableDemo = () => {
       enablePin: true,
     },
   ];
-  const data: Person[] = Array.from({ length: 1000 }, (_, i) => ({
+  const data: Person[] = Array.from({ length: 999 }, (_, i) => ({
     id: i + 1,
     name: `User ${i + 1}`,
     age: 18 + ((i * 7) % 50),

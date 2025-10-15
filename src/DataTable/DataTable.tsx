@@ -1,4 +1,4 @@
-import { useMemo, useReducer } from "react";
+import { useMemo, useReducer, type ReactNode } from "react";
 
 export type RowData = Record<string, unknown>;
 
@@ -11,6 +11,7 @@ export type Accessor<TData extends RowData> =
 export interface ColumnDef<TData extends RowData> {
   columnId: ColumnId;
   accessor: Accessor<TData>;
+  header: ReactNode;
 }
 
 export interface Pagination {
@@ -158,19 +159,83 @@ const useTable = <TData extends RowData>({
     });
   };
 
-  const onPreviousPage = () => {};
+  const onPreviousPage = () => {
+    const newPagination: Pagination = {
+      ...state.pagination,
+      pageIndex: state.pagination.pageIndex - 1,
+    };
+    dispatch({
+      type: "SET_PAGINATION",
+      payload: {
+        pagination: newPagination,
+      },
+    });
+  };
 
-  const onFirstPage = () => {};
+  const onFirstPage = () => {
+    const newPagination: Pagination = {
+      ...state.pagination,
+      pageIndex: 0,
+    };
+    dispatch({
+      type: "SET_PAGINATION",
+      payload: {
+        pagination: newPagination,
+      },
+    });
+  };
 
-  const onLastPage = () => {};
+  const onLastPage = () => {
+    const totalItems = filteredRows.length;
+    const lastPage =
+      totalItems % state.pagination.pageSize === 0
+        ? Math.floor(totalItems / state.pagination.pageSize) - 1
+        : Math.floor(totalItems / state.pagination.pageSize);
+    const newPagination: Pagination = {
+      ...state.pagination,
+      pageIndex: lastPage,
+    };
+    dispatch({
+      type: "SET_PAGINATION",
+      payload: {
+        pagination: newPagination,
+      },
+    });
+  };
 
-  const getCanNextPage = () => {};
+  const onRowPerPage = (pageSize: number) => {
+    const newPagination: Pagination = {
+      ...state.pagination,
+      pageSize,
+      pageIndex: 0,
+    };
+    dispatch({
+      type: "SET_PAGINATION",
+      payload: {
+        pagination: newPagination,
+      },
+    });
+  };
 
-  const getCanPreviousPage = () => {};
+  const getCanNextPage = () => {
+    const totalItems = filteredRows.length;
+    const lastPage =
+      totalItems % state.pagination.pageSize === 0
+        ? Math.floor(totalItems / state.pagination.pageSize) - 1
+        : Math.floor(totalItems / state.pagination.pageSize);
+    return state.pagination.pageIndex !== lastPage;
+  };
+
+  const getCanPreviousPage = () => {
+    return state.pagination.pageIndex !== 0;
+  };
 
   return {
-    state: paginationRows,
-    pagedRows: data,
+    state: state,
+    rows: paginationRows,
+    columns: columns,
+    getters,
+    totalItems: filteredRows.length,
 
     // pagination action
     onNextPage,
@@ -179,13 +244,149 @@ const useTable = <TData extends RowData>({
     onLastPage,
     getCanNextPage,
     getCanPreviousPage,
+    onRowPerPage,
     // filter action
   };
 };
 
 const DataTable = <TData extends RowData>(props: DataTableProps<TData>) => {
-  const table = useTable(props);
-  return <table></table>;
+  const {
+    state,
+    rows,
+    columns,
+    getters,
+    onFirstPage,
+    onLastPage,
+    onNextPage,
+    onPreviousPage,
+    getCanNextPage,
+    getCanPreviousPage,
+    onRowPerPage,
+    totalItems,
+  } = useTable(props);
+  return (
+    <div className="flex flex-col justify-center p-10">
+      <table className="border border-gray-500">
+        <thead>
+          <tr>
+            {columns.map((column) => (
+              <th key={column.columnId} className="border border-gray-500 p-2">
+                {column.header}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, index) => {
+            return (
+              <tr key={index} className="border border-gray-500">
+                {columns.map((column) => {
+                  return (
+                    <td
+                      key={column.columnId}
+                      className="border border-gray-500 p-2"
+                    >
+                      {getters[column.columnId](row) as ReactNode}
+                    </td>
+                  );
+                })}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <div className="flex mt-4 gap-4">
+        <button
+          onClick={onFirstPage}
+          className="border border-gray-500 cursor-pointer p-2 rounded-md disabled:opacity-50"
+        >
+          First page
+        </button>
+        <button
+          onClick={onPreviousPage}
+          className="border border-gray-500 cursor-pointer p-2 rounded-md disabled:opacity-50"
+          disabled={!getCanPreviousPage()}
+        >
+          Previous page
+        </button>
+        <button
+          onClick={onNextPage}
+          className="border border-gray-500 cursor-pointer p-2 rounded-md disabled:opacity-50"
+          disabled={!getCanNextPage()}
+        >
+          Next page
+        </button>
+        <button
+          onClick={onLastPage}
+          className="border border-gray-500 cursor-pointer p-2 rounded-md disabled:opacity-50"
+        >
+          Last page
+        </button>
+        <div className="flex items-center">
+          <span>Row per page: </span>
+          <select
+            onChange={(e) => {
+              onRowPerPage(parseInt(e.target.value));
+            }}
+            className="border border-gray-500"
+          >
+            <option value="10">10</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+        </div>
+        <div className="flex items-center">
+          <span>Page: {state.pagination.pageIndex + 1}</span>
+        </div>
+        <div className="flex items-center">
+          <span>Total items: {totalItems} rows</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+type Person = {
+  id: number;
+  name: string;
+  age: number;
+  city: string;
+  title: string;
+};
+
+const columns: ColumnDef<Person>[] = [
+  {
+    columnId: "name",
+    accessor: "name",
+    header: "Name",
+  },
+  {
+    columnId: "age",
+    accessor: "age",
+    header: "Age",
+  },
+  {
+    columnId: "city",
+    accessor: (row) => row.city,
+    header: "City",
+  },
+  {
+    columnId: "title",
+    accessor: "title",
+    header: "Title",
+  },
+];
+const data: Person[] = Array.from({ length: 1000 }, (_, i) => ({
+  id: i + 1,
+  name: `User ${i + 1}`,
+  age: 18 + ((i * 7) % 50),
+  city: ["Tokyo", "NYC", "Paris", "Hanoi"][i % 4],
+  title: ["Engineer", "Designer", "PM", "Analyst"][i % 4],
+}));
+
+export const DataTableDemo = () => {
+  return <DataTable data={data} columns={columns} />;
 };
 
 export default DataTable;
