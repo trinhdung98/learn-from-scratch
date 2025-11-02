@@ -1,18 +1,7 @@
-// import { DataTableDemo } from "./DataTable/DataTable";
-import { DataTableDemo } from "./DataTableGPT";
-import WhackAMole from "./WhackAMoleGPT";
-import Wordle from "./WordleGPT";
+import DataTableDemo from "./Interview/DataTable";
 
 function App() {
-  return (
-    <>
-      <DataTableDemo />
-      {/* <DataTableV2Demo /> */}
-      {/* {<TicTacToe />} */}
-      {/* <WhackAMole /> */}
-      {/* <Wordle /> */}
-    </>
-  );
+  return <DataTableDemo />;
 }
 
 export default App;
