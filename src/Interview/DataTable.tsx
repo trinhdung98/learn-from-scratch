@@ -25,6 +25,7 @@ interface TableState {
   filters: Filter[];
   sorts: Sort[];
   pagination: Pagination;
+  globalFilter: string;
 }
 
 type Accessor<T> = keyof T | ((item: T) => unknown);
@@ -45,6 +46,7 @@ const defaultState: TableState = {
   filters: [],
   sorts: [],
   pagination: defaultPagination,
+  globalFilter: "",
 };
 
 const applyFilters = <T,>(
@@ -452,12 +454,25 @@ const DataTableDemo = () => {
     });
   };
 
+  const onGlobalFilter = (value: string) => {
+    setTableState((previous) => {
+      return {
+        ...previous,
+        globalFilter: value,
+      };
+    });
+  };
+
   return (
     <div className="flex py-5 justify-center h-[100vh] gap-2 overflow-auto">
       <div className={`w-[${TABLE_WIDTH}px]`}>
         <div className="mb-2">
           <span>Filter: </span>
-          <input className="border border-gray-500 font-normal" />
+          <input
+            className="border border-gray-500 font-normal"
+            value={tableState.globalFilter}
+            onChange={(e) => onGlobalFilter(e.target.value)}
+          />
         </div>
         <DataTable
           items={persons}
