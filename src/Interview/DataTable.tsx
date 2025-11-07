@@ -3,6 +3,7 @@ import { useState, type ReactNode } from "react";
 const TABLE_WIDTH = 800;
 
 type ColumnId = string;
+type RowData = Record<string, unknown>;
 
 interface Filter {
   columnId: ColumnId;
@@ -49,7 +50,7 @@ const defaultState: TableState = {
   globalFilter: "",
 };
 
-const applyFilters = <T,>(
+const applyFilters = <T extends RowData>(
   items: T[],
   filters: Filter[],
   getter: Record<string, (item: T) => unknown>
@@ -67,7 +68,18 @@ const applyFilters = <T,>(
   return filteredItems;
 };
 
-const applySorts = <T,>(
+const applyGlobalFilter = <T extends RowData>(
+  items: T[],
+  globalFilter: string
+) => {
+  const newItems = items.filter((item) => {
+    const combinedValue = Object.values(item).join("_").toLowerCase();
+    return combinedValue.includes(globalFilter.toLocaleLowerCase());
+  });
+  return newItems;
+};
+
+const applySorts = <T extends RowData>(
   items: T[],
   sorts: Sort[],
   getter: Record<string, (item: T) => unknown>
@@ -91,17 +103,20 @@ const applySorts = <T,>(
   return sortedItems;
 };
 
-const applyPagination = <T,>(items: T[], pagination: Pagination): T[] => {
+const applyPagination = <T extends RowData>(
+  items: T[],
+  pagination: Pagination
+): T[] => {
   const offset = pagination.pageIndex * pagination.pageSize;
   const newItems = items.slice(offset, offset + pagination.pageSize);
   return newItems;
 };
 
-const getCellValue = <T,>(item: T, accessor: Accessor<T>) => {
+const getCellValue = <T extends RowData>(item: T, accessor: Accessor<T>) => {
   return typeof accessor === "function" ? accessor(item) : item[accessor];
 };
 
-interface DaTaTableProps<T, K extends keyof T> {
+interface DaTaTableProps<T extends RowData, K extends keyof T> {
   items: T[];
   columns: Column<T>[];
   rowKey: K;
@@ -110,7 +125,7 @@ interface DaTaTableProps<T, K extends keyof T> {
   onSort?: (sort: Sort) => void;
 }
 
-const DataTable = <T, K extends keyof T>({
+const DataTable = <T extends RowData, K extends keyof T>({
   items,
   columns,
   rowKey,
@@ -119,7 +134,7 @@ const DataTable = <T, K extends keyof T>({
   onSort,
 }: DaTaTableProps<T, K>) => {
   const [tableState, setTableState] = useState(state);
-  const { filters, sorts, pagination } = tableState;
+  const { filters, sorts, pagination, globalFilter } = tableState;
   console.log("tableState", tableState);
 
   const filterById = Object.fromEntries(
@@ -144,6 +159,15 @@ const DataTable = <T, K extends keyof T>({
       };
     });
     onFilter?.(filter);
+  };
+
+  const onGlobalFilter = (value: string) => {
+    setTableState((previous) => {
+      return {
+        ...previous,
+        globalFilter: value,
+      };
+    });
   };
 
   const onColumnSort = (sort: Sort) => {
@@ -263,11 +287,20 @@ const DataTable = <T, K extends keyof T>({
   };
 
   const filteredItems = applyFilters(items, filters, getter);
-  const sortedItems = applySorts(filteredItems, sorts, getter);
+  const globalFilteredItems = applyGlobalFilter(filteredItems, globalFilter);
+  const sortedItems = applySorts(globalFilteredItems, sorts, getter);
   const paginatedItems = applyPagination(sortedItems, pagination);
 
   return (
     <>
+      <div className="mb-2">
+        <span>Filter: </span>
+        <input
+          className="border border-gray-500 font-normal"
+          value={tableState.globalFilter}
+          onChange={(e) => onGlobalFilter(e.target.value)}
+        />
+      </div>
       <table className={`border border-gray-500 min-w-[${TABLE_WIDTH}px]`}>
         <thead>
           <tr>
@@ -373,7 +406,7 @@ const DataTable = <T, K extends keyof T>({
   );
 };
 
-interface Person {
+interface Person extends RowData {
   personId: string;
   name: string;
   birthday: string;
@@ -454,26 +487,9 @@ const DataTableDemo = () => {
     });
   };
 
-  const onGlobalFilter = (value: string) => {
-    setTableState((previous) => {
-      return {
-        ...previous,
-        globalFilter: value,
-      };
-    });
-  };
-
   return (
     <div className="flex py-5 justify-center h-[100vh] gap-2 overflow-auto">
       <div className={`w-[${TABLE_WIDTH}px]`}>
-        <div className="mb-2">
-          <span>Filter: </span>
-          <input
-            className="border border-gray-500 font-normal"
-            value={tableState.globalFilter}
-            onChange={(e) => onGlobalFilter(e.target.value)}
-          />
-        </div>
         <DataTable
           items={persons}
           rowKey={"personId"}
