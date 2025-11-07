@@ -1,4 +1,4 @@
-import DataTableDemo from "./Interview/DataTable";
+import DataTableDemo from "./Interview/DataTable/DataTable";
 
 function App() {
   return <DataTableDemo />;

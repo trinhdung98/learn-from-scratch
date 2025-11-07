@@ -1,14 +1,8 @@
 import { useState, type ReactNode } from "react";
+import type { ColumnId, RowData } from "./types";
+import { builtInFilterFns, type ColumnFilterFn, type Filter } from "./filter";
 
 const TABLE_WIDTH = 800;
-
-type ColumnId = string;
-type RowData = Record<string, unknown>;
-
-interface Filter {
-  columnId: ColumnId;
-  value: string;
-}
 
 type SortDirection = "asc" | "desc" | null;
 
@@ -36,6 +30,7 @@ interface Column<T> {
   header: ReactNode;
   accessor: Accessor<T>;
   cell: (item: T) => ReactNode;
+  filterFn?: ColumnFilterFn;
 }
 
 const defaultPagination: Pagination = {
@@ -53,16 +48,17 @@ const defaultState: TableState = {
 const applyFilters = <T extends RowData>(
   items: T[],
   filters: Filter[],
-  getter: Record<string, (item: T) => unknown>
+  getters: Record<ColumnId, (item: T) => unknown>,
+  filterFnById: Record<ColumnId, ColumnFilterFn | undefined>
 ): T[] => {
   if (filters.length === 0) {
     return items;
   }
   const filteredItems = items.filter((item) => {
     return filters.every((filter) => {
-      return String(getter[filter.columnId](item))
-        .toLowerCase()
-        .includes(filter.value.toLowerCase());
+      const filterFnKey = filterFnById[filter.columnId] ?? "includesString";
+      const filterFn = builtInFilterFns[filterFnKey];
+      return filterFn(item, filter, getters);
     });
   });
   return filteredItems;
@@ -141,11 +137,15 @@ const DataTable = <T extends RowData, K extends keyof T>({
     filters.map((filter) => [filter.columnId, filter.value])
   );
 
-  const getter = Object.fromEntries(
+  const getters = Object.fromEntries(
     columns.map((column) => [
       column.columnId,
       (item: T) => getCellValue(item, column.accessor),
     ])
+  );
+
+  const filterFnById = Object.fromEntries(
+    columns.map((column) => [column.columnId, column.filterFn])
   );
 
   const onColumnFilter = (filter: Filter) => {
@@ -286,9 +286,9 @@ const DataTable = <T extends RowData, K extends keyof T>({
     });
   };
 
-  const filteredItems = applyFilters(items, filters, getter);
+  const filteredItems = applyFilters(items, filters, getters, filterFnById);
   const globalFilteredItems = applyGlobalFilter(filteredItems, globalFilter);
-  const sortedItems = applySorts(globalFilteredItems, sorts, getter);
+  const sortedItems = applySorts(globalFilteredItems, sorts, getters);
   const paginatedItems = applyPagination(sortedItems, pagination);
 
   return (
@@ -326,7 +326,7 @@ const DataTable = <T extends RowData, K extends keyof T>({
                     name={column.columnId}
                     id={column.columnId}
                     className="border border-gray-500 font-normal"
-                    value={filterById[column.columnId]}
+                    value={String(filterById[column.columnId])}
                     onChange={(e) =>
                       onColumnFilter({
                         columnId: column.columnId,
