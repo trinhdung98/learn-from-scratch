@@ -2,13 +2,9 @@ import { useState, type ReactNode } from "react";
 import type { ColumnId, RowData } from "./types";
 import { builtInFilterFns, type ColumnFilterFn, type Filter } from "./filter";
 import { builtInSortFns, type ColumnSortFn, type Sort } from "./sort";
+import { defaultPagination, type Pagination } from "./pagination";
 
 const TABLE_WIDTH = 800;
-
-interface Pagination {
-  pageIndex: number;
-  pageSize: number;
-}
 
 interface TableState {
   filters: Filter[];
@@ -27,11 +23,6 @@ interface Column<T> {
   filterFn?: ColumnFilterFn;
   sortFn?: ColumnSortFn;
 }
-
-const defaultPagination: Pagination = {
-  pageIndex: 0,
-  pageSize: 10,
-};
 
 const defaultState: TableState = {
   filters: [],
@@ -125,7 +116,6 @@ const DataTable = <T extends RowData, K extends keyof T>({
 }: DaTaTableProps<T, K>) => {
   const [tableState, setTableState] = useState(state);
   const { filters, sorts, pagination, globalFilter } = tableState;
-  console.log("tableState", tableState);
 
   const filterById = Object.fromEntries(
     filters.map((filter) => [filter.columnId, filter.value])
@@ -311,6 +301,7 @@ const DataTable = <T extends RowData, K extends keyof T>({
                               : null,
                         })
                       }
+                      className="cursor-pointer"
                     >
                       {column.header}
                     </button>
