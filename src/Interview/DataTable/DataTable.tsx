@@ -1,15 +1,9 @@
 import { useState, type ReactNode } from "react";
 import type { ColumnId, RowData } from "./types";
 import { builtInFilterFns, type ColumnFilterFn, type Filter } from "./filter";
+import { builtInSortFns, type ColumnSortFn, type Sort } from "./sort";
 
 const TABLE_WIDTH = 800;
-
-type SortDirection = "asc" | "desc" | null;
-
-interface Sort {
-  columnId: ColumnId;
-  direction: SortDirection;
-}
 
 interface Pagination {
   pageIndex: number;
@@ -31,6 +25,7 @@ interface Column<T> {
   accessor: Accessor<T>;
   cell: (item: T) => ReactNode;
   filterFn?: ColumnFilterFn;
+  sortFn?: ColumnSortFn;
 }
 
 const defaultPagination: Pagination = {
@@ -56,8 +51,8 @@ const applyFilters = <T extends RowData>(
   }
   const filteredItems = items.filter((item) => {
     return filters.every((filter) => {
-      const filterFnKey = filterFnById[filter.columnId] ?? "includesString";
-      const filterFn = builtInFilterFns[filterFnKey];
+      const filterFnKey = filterFnById[filter.columnId];
+      const filterFn = builtInFilterFns[filterFnKey ?? "includesString"];
       return filterFn(item, filter, getters);
     });
   });
@@ -78,23 +73,22 @@ const applyGlobalFilter = <T extends RowData>(
 const applySorts = <T extends RowData>(
   items: T[],
   sorts: Sort[],
-  getter: Record<string, (item: T) => unknown>
+  getters: Record<ColumnId, (item: T) => unknown>,
+  sortFnById: Record<ColumnId, ColumnSortFn | undefined>
 ): T[] => {
   if (sorts.length === 0) {
     return items;
   }
   const sortedItems = items.sort((itemA, itemB) => {
-    const sort = sorts[0];
-    const valueA = String(getter[sort.columnId](itemA));
-    const valueB = String(getter[sort.columnId](itemB));
-    if (valueA === valueB) {
-      return 0;
+    for (const sort of sorts) {
+      const sortFnKey = sortFnById[sort.columnId];
+      const sortFn = builtInSortFns[sortFnKey ?? "text"];
+      const sortNumber = sortFn(itemA, itemB, sort, getters);
+      if (sortNumber !== 0) {
+        return sortFn(itemA, itemB, sort, getters);
+      }
     }
-    if (sort.direction === "asc") {
-      return valueA > valueB ? 1 : -1;
-    } else {
-      return valueA > valueB ? -1 : 1;
-    }
+    return 0;
   });
   return sortedItems;
 };
@@ -137,6 +131,10 @@ const DataTable = <T extends RowData, K extends keyof T>({
     filters.map((filter) => [filter.columnId, filter.value])
   );
 
+  const sortById = Object.fromEntries(
+    sorts.map((sort) => [sort.columnId, sort])
+  );
+
   const getters = Object.fromEntries(
     columns.map((column) => [
       column.columnId,
@@ -146,6 +144,10 @@ const DataTable = <T extends RowData, K extends keyof T>({
 
   const filterFnById = Object.fromEntries(
     columns.map((column) => [column.columnId, column.filterFn])
+  );
+
+  const sortFnById = Object.fromEntries(
+    columns.map((column) => [column.columnId, column.sortFn])
   );
 
   const onColumnFilter = (filter: Filter) => {
@@ -172,33 +174,13 @@ const DataTable = <T extends RowData, K extends keyof T>({
 
   const onColumnSort = (sort: Sort) => {
     setTableState((previous) => {
-      const foundSort = previous.sorts.find(
-        (item) => item.columnId === sort.columnId
-      );
       const filteredOutSort = previous.sorts.filter(
         (item) => item.columnId !== sort.columnId
       );
-      if (foundSort) {
-        const newSort = { ...foundSort };
-        if (foundSort.direction === "asc") {
-          newSort.direction = "desc";
-        } else {
-          newSort.direction = "asc";
-        }
-
-        return {
-          ...previous,
-          sorts: [newSort, ...filteredOutSort],
-        };
-      } else {
-        return {
-          ...previous,
-          sorts: [
-            { columnId: sort.columnId, direction: "asc" },
-            ...filteredOutSort,
-          ],
-        };
-      }
+      return {
+        ...previous,
+        sorts: [sort, ...filteredOutSort],
+      };
     });
     onSort?.(sort);
   };
@@ -288,7 +270,12 @@ const DataTable = <T extends RowData, K extends keyof T>({
 
   const filteredItems = applyFilters(items, filters, getters, filterFnById);
   const globalFilteredItems = applyGlobalFilter(filteredItems, globalFilter);
-  const sortedItems = applySorts(globalFilteredItems, sorts, getters);
+  const sortedItems = applySorts(
+    globalFilteredItems,
+    sorts,
+    getters,
+    sortFnById
+  );
   const paginatedItems = applyPagination(sortedItems, pagination);
 
   return (
@@ -305,6 +292,7 @@ const DataTable = <T extends RowData, K extends keyof T>({
         <thead>
           <tr>
             {columns.map((column) => {
+              const direction = sortById[column.columnId]?.direction ?? null;
               return (
                 <th
                   key={column.columnId}
@@ -315,18 +303,32 @@ const DataTable = <T extends RowData, K extends keyof T>({
                       onClick={() =>
                         onColumnSort({
                           columnId: column.columnId,
-                          direction: "asc",
+                          direction:
+                            direction === null
+                              ? "asc"
+                              : direction === "asc"
+                              ? "desc"
+                              : null,
                         })
                       }
                     >
                       {column.header}
                     </button>
+                    {direction === "desc"
+                      ? "🔻"
+                      : direction === "asc"
+                      ? "🔺"
+                      : null}
                   </div>
                   <input
                     name={column.columnId}
                     id={column.columnId}
                     className="border border-gray-500 font-normal"
-                    value={String(filterById[column.columnId])}
+                    value={
+                      filterById[column.columnId]
+                        ? String(filterById[column.columnId])
+                        : ""
+                    }
                     onChange={(e) =>
                       onColumnFilter({
                         columnId: column.columnId,
@@ -426,6 +428,7 @@ const columns: Column<Person>[] = [
     header: "Name",
     accessor: "name",
     cell: (item) => item.name,
+    filterFn: "includesString",
   },
   {
     columnId: "address",
