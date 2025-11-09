@@ -1,7 +1,7 @@
-import TreeViewDemo from "./GPT/23_TreeView/TreeView";
+import CheckboxFolderTreeDemo from "./GPT/25_CheckboxFolderTree/CheckboxFolderTree";
 
 function App() {
-  return <TreeViewDemo />;
+  return <CheckboxFolderTreeDemo />;
 }
 
 export default App;
