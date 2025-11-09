@@ -1,7 +1,7 @@
-import CheckboxFolderTreeDemo from "./GPT/25_CheckboxFolderTree/CheckboxFolderTree";
+import ChatAppDemo from "./GPT/30_ChatApplication/ChatApplication";
 
 function App() {
-  return <CheckboxFolderTreeDemo />;
+  return <ChatAppDemo />;
 }
 
 export default App;
