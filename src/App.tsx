@@ -1,9 +1,7 @@
-import TicTacToe from "./TicTacToeGPTV2";
-
-// import TicTacToe from "./Interview/TicTacToe/TicTacToe";
+import TreeViewDemo from "./GPT/23_TreeView/TreeView";
 
 function App() {
-  return <TicTacToe />;
+  return <TreeViewDemo />;
 }
 
 export default App;
